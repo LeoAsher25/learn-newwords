@@ -135,10 +135,65 @@ File: `firestore.rules`
 
 ## Deploy lên Vercel
 
-1. Push repo lên GitHub/GitLab/Bitbucket.
-2. Import project vào Vercel.
-3. Set đầy đủ biến môi trường giống `.env.local` trong phần Environment Variables của Vercel.
-4. Deploy.
+Repo này là **Next.js App Router** — Vercel nhận diện tự động; file `vercel.json` chỉ cố định `install`/`build` chuẩn npm.
+
+### Trước khi deploy
+
+1. Đảm bảo production build chạy được:
+
+   ```bash
+   npm run build
+   ```
+
+2. **Firestore** đã được tạo trong Firebase Console và rules đã publish (không để rule `allow read, write: if false` cho toàn bộ DB).
+
+### Kết nối repo và deploy
+
+1. Push code lên GitHub / GitLab / Bitbucket.
+2. Vào [Vercel Dashboard](https://vercel.com) → **Add New…** → **Project** → Import repo.
+3. **Framework Preset**: Next.js (mặc định).
+4. **Root Directory**: `./` (giữ nguyên nếu không monorepo).
+5. **Build Command**: `npm run build` (trùng với `vercel.json`).
+6. **Output Directory**: để trống (Vercel xử lý Next.js).
+
+### Biến môi trường trên Vercel
+
+Trong **Project → Settings → Environment Variables**, thêm **cùng bộ** như `.env.example` / `.env.local`:
+
+| Name | Environment |
+|------|-------------|
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Production, Preview, Development |
+
+Sau khi lưu → **Redeploy** (hoặc push commit mới) để build nhận env.
+
+### Firebase + domain Vercel (bắt buộc cho đăng nhập Google)
+
+1. **Authentication → Settings → Authorized domains**: thêm domain deploy, ví dụ:
+   - Production: `ten-du-an.vercel.app`
+   - Custom domain (nếu có): `hoc-tu.example.com`
+
+2. Mỗi **Preview deployment** có URL riêng (`*.vercel.app`). Nếu cần test OAuth trên preview, thêm từng hostname preview vào Authorized domains (Firebase không hỗ trợ wildcard đầy đủ cho mọi preview).
+
+3. **Google Cloud Console** (Credentials → API key của Web client): nếu key bị giới hạn HTTP referrer, thêm origin `https://ten-du-an.vercel.app` (và preview nếu dùng).
+
+### Kiểm tra sau deploy
+
+- Mở URL production → Login Google → Dashboard → tạo set → practice (Firestore ghi được).
+
+### CLI (tuỳ chọn)
+
+```bash
+npm i -g vercel
+vercel login
+vercel link   # trong thư mục project
+vercel env pull .env.vercel.local   # đồng bộ env về máy (tuỳ chọn)
+vercel --prod
+```
 
 ## Scripts
 
