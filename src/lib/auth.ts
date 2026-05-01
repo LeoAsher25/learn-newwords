@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
   User,
   onAuthStateChanged,
   signInWithPopup,
@@ -67,6 +70,28 @@ export function useAuth() {
 
 export async function signInWithGoogle() {
   await signInWithPopup(getFirebaseAuth(), getGoogleProvider());
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+}
+
+export async function signUpWithEmail(
+  displayName: string,
+  email: string,
+  password: string,
+) {
+  const credential = await createUserWithEmailAndPassword(
+    getFirebaseAuth(),
+    email,
+    password,
+  );
+
+  if (displayName.trim()) {
+    await updateProfile(credential.user, { displayName: displayName.trim() });
+  }
+
+  await ensureUserDocument(credential.user);
 }
 
 export async function signOutFromApp() {

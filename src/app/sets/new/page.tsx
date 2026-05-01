@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import AuthGuard from "@/components/AuthGuard";
 import WordInputTable from "@/components/WordInputTable";
 import { useAuth } from "@/lib/auth";
@@ -31,7 +31,6 @@ function NewSetContent() {
     control,
     register,
     handleSubmit,
-    watch,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<{ title: string; words: WordInput[] }>({
@@ -44,11 +43,15 @@ function NewSetContent() {
     control,
     name: "words",
   });
-  const words = watch("words");
+  const words = useWatch({ control, name: "words" });
 
   const canSubmit = useMemo(() => !isSubmitting, [isSubmitting]);
 
-  function handleWordChange(index: number, field: "meaning" | "answer", value: string) {
+  function handleWordChange(
+    index: number,
+    field: "meaning" | "answer",
+    value: string,
+  ) {
     setValue(`words.${index}.${field}`, value, {
       shouldDirty: true,
       shouldValidate: true,
@@ -139,16 +142,23 @@ function NewSetContent() {
 
         <WordInputTable
           words={words ?? []}
+          rowKeys={fields?.map((field) => field.id) ?? []}
           errors={
             Array.isArray(errors.words)
-              ? Object.fromEntries(
-                  errors.words.map((rowError, index) => [
-                    index,
-                    {
-                      meaning: rowError?.meaning?.message,
-                      answer: rowError?.answer?.message,
-                    },
-                  ]),
+              ? errors.words.reduce<Record<number, { meaning?: string; answer?: string }>>(
+                  (acc, rowError, index) => {
+                    if (!rowError) {
+                      return acc;
+                    }
+
+                    acc[index] = {
+                      meaning: rowError.meaning?.message,
+                      answer: rowError.answer?.message,
+                    };
+
+                    return acc;
+                  },
+                  {},
                 )
               : undefined
           }

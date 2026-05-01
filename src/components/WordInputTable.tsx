@@ -8,6 +8,7 @@ interface WordInputErrors {
 
 interface WordInputTableProps {
   words: WordInput[];
+  rowKeys: string[];
   errors?: Record<number, WordInputErrors>;
   onChange: (index: number, field: "meaning" | "answer", value: string) => void;
   onRemove: (index: number) => void;
@@ -20,6 +21,7 @@ interface WordInputTableProps {
 
 export default function WordInputTable({
   words,
+  rowKeys,
   errors,
   onChange,
   onRemove,
@@ -42,11 +44,12 @@ export default function WordInputTable({
           </tr>
         </thead>
         <tbody>
-          {words.map((word, index) => {
+          {rowKeys.map((rowKey, index) => {
+            const word = words[index] ?? { meaning: "", answer: "" };
             const rowError = errors?.[index];
 
             return (
-              <tr key={index} className="border-t border-slate-200 align-top">
+              <tr key={rowKey} className="border-t border-slate-200 align-top">
                 <td className="px-3 py-2 text-sm font-medium text-slate-500 text-center align-middle">
                   {index + 1}
                 </td>
@@ -93,9 +96,22 @@ export default function WordInputTable({
                     type="button"
                     onClick={() => onRemove(index)}
                     disabled={!canRemove}
-                    className="inline-flex size-8 items-center justify-center rounded-md border border-slate-300 text-sm text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex size-8 items-center justify-center rounded-md border border-rose-500/35 text-sm text-rose-500/85 hover:bg-rose-500/12 disabled:cursor-not-allowed disabled:opacity-40"
                     aria-label={`Xóa từ số ${index + 1}`}>
-                    x
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="size-4"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
                   </button>
                 </td>
               </tr>

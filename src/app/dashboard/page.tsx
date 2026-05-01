@@ -86,8 +86,6 @@ function DashboardContent() {
   const { user } = useAuth();
   const dashboardQuery = useDashboardData(user?.uid);
 
-  console.log("dashboardQuery: ", dashboardQuery.data);
-
   const sets = useMemo(
     () => dashboardQuery.data?.sets ?? [],
     [dashboardQuery.data?.sets],
