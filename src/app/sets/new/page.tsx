@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useFieldArray, useForm } from "react-hook-form";
 import AuthGuard from "@/components/AuthGuard";
 import WordInputTable from "@/components/WordInputTable";
 import { useAuth } from "@/lib/auth";
@@ -25,135 +26,78 @@ function NewSetContent() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const [title, setTitle] = useState(getDefaultSetTitle);
-  const [words, setWords] = useState<WordInput[]>(createInitialWords);
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const [wordErrors, setWordErrors] = useState<
-    Record<number, { meaning?: string; answer?: string }>
-  >({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const {
+    control,
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<{ title: string; words: WordInput[] }>({
+    defaultValues: {
+      title: getDefaultSetTitle(),
+      words: createInitialWords(),
+    },
+  });
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "words",
+  });
+  const words = watch("words");
 
   const canSubmit = useMemo(() => !isSubmitting, [isSubmitting]);
 
-  function handleWordChange(
-    index: number,
-    field: "meaning" | "answer",
-    value: string,
-  ) {
-    setWords((prev) => {
-      const next = [...prev];
-      next[index] = {
-        ...next[index],
-        [field]: value,
-      };
-      return next;
+  function handleWordChange(index: number, field: "meaning" | "answer", value: string) {
+    setValue(`words.${index}.${field}`, value, {
+      shouldDirty: true,
+      shouldValidate: true,
     });
+    if (formError) {
+      setFormError(null);
+    }
   }
 
   function handleAddWord() {
-    setWords((prev) => [...prev, { meaning: "", answer: "" }]);
+    append({ meaning: "", answer: "" });
   }
 
   function handleRemoveWord(index: number) {
-    setWords((prev) => {
-      if (prev.length <= MIN_WORDS) {
-        return prev;
-      }
-
-      return prev.filter((_, itemIndex) => itemIndex !== index);
-    });
-  }
-
-  function validateForm(): {
-    isValid: boolean;
-    payload: WordCreatePayload[];
-    titleValue: string;
-  } {
-    const nextWordErrors: Record<
-      number,
-      { meaning?: string; answer?: string }
-    > = {};
-    const payload: WordCreatePayload[] = [];
-
-    const normalizedTitle = title.trim();
-
-    if (!normalizedTitle) {
-      setTitleError("Tên set không được để trống.");
-    } else {
-      setTitleError(null);
+    if (fields.length <= MIN_WORDS) {
+      return;
     }
-
-    words.forEach((word, index) => {
-      const meaning = word.meaning.trim();
-      const answer = word.answer.trim();
-
-      if (!meaning) {
-        nextWordErrors[index] = {
-          ...nextWordErrors[index],
-          meaning: "Nghĩa tiếng Việt là bắt buộc.",
-        };
-      }
-
-      if (!answer) {
-        nextWordErrors[index] = {
-          ...nextWordErrors[index],
-          answer: "Từ tiếng Anh là bắt buộc.",
-        };
-      }
-
-      payload.push({
-        index: index + 1,
-        meaning,
-        answer,
-      });
-    });
-
-    setWordErrors(nextWordErrors);
-
-    const hasErrors =
-      Boolean(Object.keys(nextWordErrors).length) ||
-      !normalizedTitle ||
-      words.length < MIN_WORDS;
-
-    return {
-      isValid: !hasErrors,
-      payload,
-      titleValue: normalizedTitle,
-    };
+    remove(index);
+    if (formError) {
+      setFormError(null);
+    }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function onSubmit(values: { title: string; words: WordInput[] }) {
     if (!user) {
       return;
     }
 
     setFormError(null);
-    setWordErrors({});
-    const result = validateForm();
-
-    if (!result.isValid) {
-      if (words.length < MIN_WORDS) {
-        setFormError(`Cần tối thiểu ${MIN_WORDS} từ trong một set.`);
-      }
+    if (values.words.length < MIN_WORDS) {
+      setFormError(`Cần tối thiểu ${MIN_WORDS} từ trong một set.`);
       return;
     }
 
-    setIsSubmitting(true);
+    const payload: WordCreatePayload[] = values.words.map((word, index) => ({
+      index: index + 1,
+      meaning: word.meaning.trim(),
+      answer: word.answer.trim(),
+    }));
 
     try {
       const setId = await createSetWithWords(
         user.uid,
-        result.titleValue,
-        result.payload,
+        values.title.trim(),
+        payload,
       );
       router.push(`/sets/${setId}/practice`);
     } catch {
       setFormError("Không thể tạo set. Vui lòng thử lại.");
-    } finally {
-      setIsSubmitting(false);
     }
   }
 
@@ -167,31 +111,64 @@ function NewSetContent() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <label className="space-y-1">
             <span className="text-sm font-medium text-slate-700">Tên set</span>
             <input
               type="text"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              {...register("title", {
+                validate: (value) =>
+                  value.trim().length > 0 || "Tên set không được để trống.",
+                onChange: () => {
+                  if (formError) {
+                    setFormError(null);
+                  }
+                },
+              })}
               className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-200 ${
-                titleError ? "border-red-400" : "border-slate-300"
+                errors.title ? "border-red-400" : "border-slate-300"
               }`}
               placeholder="Ví dụ: Travel Vocabulary"
             />
-            {titleError ? (
-              <p className="text-xs text-red-600">{titleError}</p>
+            {errors.title ? (
+              <p className="text-xs text-red-600">{errors.title.message}</p>
             ) : null}
           </label>
         </div>
 
         <WordInputTable
-          words={words}
-          errors={wordErrors}
+          words={words ?? []}
+          errors={
+            Array.isArray(errors.words)
+              ? Object.fromEntries(
+                  errors.words.map((rowError, index) => [
+                    index,
+                    {
+                      meaning: rowError?.meaning?.message,
+                      answer: rowError?.answer?.message,
+                    },
+                  ]),
+                )
+              : undefined
+          }
           onChange={handleWordChange}
           onRemove={handleRemoveWord}
-          canRemove={words.length > MIN_WORDS}
+          canRemove={fields.length > MIN_WORDS}
+          registerField={(index, field) =>
+            register(`words.${index}.${field}`, {
+              validate: (value) =>
+                value.trim().length > 0 ||
+                (field === "meaning"
+                  ? "Nghĩa tiếng Việt là bắt buộc."
+                  : "Từ tiếng Anh là bắt buộc."),
+              onChange: () => {
+                if (formError) {
+                  setFormError(null);
+                }
+              },
+            })
+          }
         />
 
         <div className="flex items-center gap-4 w-full justify-end">

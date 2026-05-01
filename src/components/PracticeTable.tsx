@@ -1,4 +1,5 @@
 import { Word } from "@/types";
+import { UseFormRegisterReturn } from "react-hook-form";
 
 export type PracticePhase = "filling" | "fixing";
 
@@ -13,6 +14,7 @@ interface PracticeTableProps {
   lastCheckMap: Record<string, boolean>;
   revealedWordId: string | null;
   onInputChange: (wordId: string, value: string) => void;
+  registerInput: (wordId: string) => UseFormRegisterReturn;
 }
 
 export default function PracticeTable({
@@ -26,6 +28,7 @@ export default function PracticeTable({
   lastCheckMap,
   revealedWordId,
   onInputChange,
+  registerInput,
 }: PracticeTableProps) {
   const wordMap = new Map(words.map((word) => [word.id, word]));
   const orderedWords = orderedWordIds
@@ -69,6 +72,7 @@ export default function PracticeTable({
                   <input
                     type="text"
                     value={inputs[word.id] ?? ""}
+                    {...registerInput(word.id)}
                     onChange={(event) => onInputChange(word.id, event.target.value)}
                     disabled={!isEditable}
                     className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 ${inputBorderClass}`}

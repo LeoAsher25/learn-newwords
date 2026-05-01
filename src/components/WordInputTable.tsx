@@ -1,4 +1,5 @@
 import { WordInput } from "@/types";
+import { UseFormRegisterReturn } from "react-hook-form";
 
 interface WordInputErrors {
   meaning?: string;
@@ -11,6 +12,10 @@ interface WordInputTableProps {
   onChange: (index: number, field: "meaning" | "answer", value: string) => void;
   onRemove: (index: number) => void;
   canRemove: boolean;
+  registerField: (
+    index: number,
+    field: "meaning" | "answer",
+  ) => UseFormRegisterReturn;
 }
 
 export default function WordInputTable({
@@ -19,6 +24,7 @@ export default function WordInputTable({
   onChange,
   onRemove,
   canRemove,
+  registerField,
 }: WordInputTableProps) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -48,6 +54,7 @@ export default function WordInputTable({
                   <input
                     type="text"
                     value={word.meaning}
+                    {...registerField(index, "meaning")}
                     onChange={(event) =>
                       onChange(index, "meaning", event.target.value)
                     }
@@ -66,6 +73,7 @@ export default function WordInputTable({
                   <input
                     type="text"
                     value={word.answer}
+                    {...registerField(index, "answer")}
                     onChange={(event) =>
                       onChange(index, "answer", event.target.value)
                     }

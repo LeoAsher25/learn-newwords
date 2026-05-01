@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useForm, useWatch } from "react-hook-form";
 import AuthGuard from "@/components/AuthGuard";
 import HintButton from "@/components/HintButton";
 import LoadingState from "@/components/LoadingState";
@@ -36,7 +37,6 @@ function PracticeContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [roundIndex, setRoundIndex] = useState(0);
   const [phase, setPhase] = useState<PracticePhase>("filling");
-  const [inputs, setInputs] = useState<Record<string, string>>({});
   const [wrongMap, setWrongMap] = useState<Record<string, boolean>>({});
   const [lastCheckMap, setLastCheckMap] = useState<Record<string, boolean>>({});
   const [hintedRoundMap, setHintedRoundMap] = useState<Record<string, boolean>>(
@@ -60,6 +60,13 @@ function PracticeContent() {
     wrongCount: 0,
     usedHintCount: 0,
   });
+  const { register, setValue, getValues, reset, control } = useForm<{
+    inputs: Record<string, string>;
+  }>({
+    defaultValues: { inputs: {} },
+  });
+  const inputs = useWatch({ control, name: "inputs" });
+  const safeInputs = useMemo(() => inputs ?? {}, [inputs]);
 
   useEffect(() => {
     async function loadData() {
@@ -120,7 +127,7 @@ function PracticeContent() {
       let priorFilled = true;
 
       for (let j = 0; j < i; j++) {
-        if ((inputs[orderedWordIds[j]] ?? "").trim().length === 0) {
+        if ((safeInputs[orderedWordIds[j]] ?? "").trim().length === 0) {
           priorFilled = false;
           break;
         }
@@ -130,28 +137,28 @@ function PracticeContent() {
         continue;
       }
 
-      if ((inputs[wordId] ?? "").trim().length === 0) {
+      if ((safeInputs[wordId] ?? "").trim().length === 0) {
         return wordId;
       }
     }
 
     return null;
-  }, [phase, orderedWordIds, inputs, wrongMap]);
+  }, [phase, orderedWordIds, safeInputs, wrongMap]);
 
   const allInputsFilled = useMemo(
     () =>
       orderedWordIds.length > 0 &&
       orderedWordIds.every(
-        (wordId) => (inputs[wordId] ?? "").trim().length > 0,
+        (wordId) => (safeInputs[wordId] ?? "").trim().length > 0,
       ),
-    [orderedWordIds, inputs],
+    [orderedWordIds, safeInputs],
   );
 
   const canRecheck =
     Object.keys(wrongMap).length > 0 &&
     Object.entries(wrongMap)
       .filter(([, value]) => value)
-      .every(([wordId]) => (inputs[wordId] ?? "").trim().length > 0);
+      .every(([wordId]) => (safeInputs[wordId] ?? "").trim().length > 0);
 
   const actionLabel = phase === "filling" ? "Kiểm tra" : "Kiểm tra lại";
 
@@ -172,19 +179,19 @@ function PracticeContent() {
       }
 
       for (let j = 0; j < idx; j++) {
-        if ((inputs[orderedWordIds[j]] ?? "").trim().length === 0) {
+        if ((safeInputs[orderedWordIds[j]] ?? "").trim().length === 0) {
           return false;
         }
       }
 
       return true;
     };
-  }, [phase, orderedWordIds, inputs, wrongMap]);
+  }, [phase, orderedWordIds, safeInputs, wrongMap]);
 
   function resetRound(nextRoundIndex: number) {
     setRoundIndex(nextRoundIndex);
     setPhase("filling");
-    setInputs({});
+    reset({ inputs: {} });
     setWrongMap({});
     setLastCheckMap({});
     setHintedRoundMap({});
@@ -253,15 +260,40 @@ function PracticeContent() {
   }
 
   function handleInputChange(wordId: string, value: string) {
+    if (practiceError) {
+      setPracticeError(null);
+    }
+
+    setWrongMap((prev) => {
+      if (!prev[wordId]) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [wordId]: false,
+      };
+    });
+
+    setLastCheckMap((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, wordId)) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[wordId];
+      return next;
+    });
+
     if (phase === "fixing") {
       if (!wrongMap[wordId]) {
         return;
       }
 
-      setInputs((prev) => ({
-        ...prev,
-        [wordId]: value,
-      }));
+      setValue(`inputs.${wordId}`, value, {
+        shouldDirty: true,
+        shouldValidate: false,
+      });
       return;
     }
 
@@ -271,23 +303,21 @@ function PracticeContent() {
       return;
     }
 
+    const currentInputs = getValues("inputs") ?? {};
+
     for (let j = 0; j < idx; j++) {
-      if ((inputs[orderedWordIds[j]] ?? "").trim().length === 0) {
+      if ((currentInputs[orderedWordIds[j]] ?? "").trim().length === 0) {
         return;
       }
     }
 
-    setInputs((prev) => {
-      const next: Record<string, string> = { ...prev, [wordId]: value };
-
-      if (value.trim().length === 0) {
-        for (let k = idx + 1; k < orderedWordIds.length; k++) {
-          delete next[orderedWordIds[k]];
-        }
+    const next: Record<string, string> = { ...currentInputs, [wordId]: value };
+    if (value.trim().length === 0) {
+      for (let k = idx + 1; k < orderedWordIds.length; k++) {
+        delete next[orderedWordIds[k]];
       }
-
-      return next;
-    });
+    }
+    reset({ inputs: next }, { keepDirty: true });
   }
 
   async function finalizeSession(currentSessionId: string) {
@@ -346,7 +376,7 @@ function PracticeContent() {
           return;
         }
 
-        const input = (inputs[wordId] ?? "").trim();
+        const input = (safeInputs[wordId] ?? "").trim();
         const usedHint = Boolean(hintedRoundMap[wordId]);
         const isCorrect = isAnswerCorrect(input, word.answer);
 
@@ -481,11 +511,12 @@ function PracticeContent() {
         phase={phase}
         activeWordId={activeWordId}
         isInputEnabled={isInputEnabled}
-        inputs={inputs}
+        inputs={safeInputs}
         wrongMap={wrongMap}
         lastCheckMap={lastCheckMap}
         revealedWordId={revealedWordId}
         onInputChange={handleInputChange}
+        registerInput={(wordId) => register(`inputs.${wordId}`)}
       />
 
       <div className="flex flex-wrap items-center gap-2">

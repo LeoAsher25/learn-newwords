@@ -6,6 +6,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   limit,
   orderBy,
@@ -16,6 +17,11 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase";
+import {
+  DEFAULT_REVIEW_SCHEDULE_SETTINGS,
+  getReviewDueCutoff,
+  isReviewDue,
+} from "@/lib/reviewSchedule";
 import { calculateNextReview, ReviewPerformance } from "@/lib/spacedRepetition";
 import {
   Attempt,
@@ -29,6 +35,7 @@ import {
   SetStatus,
   Word,
   WordCreatePayload,
+  ReviewScheduleSettings,
   WordPerformance,
   WordStatus,
 } from "@/types";
@@ -132,6 +139,28 @@ function attemptsRef(userId: string, setId: string, sessionId: string) {
   );
 }
 
+function mapReviewScheduleSettings(data: DocumentData): ReviewScheduleSettings {
+  const raw = data.reviewScheduleSettings as Partial<ReviewScheduleSettings> | undefined;
+  const dueMode = raw?.dueMode;
+  const timezone =
+    typeof raw?.timezone === "string" && raw.timezone.trim().length > 0
+      ? raw.timezone.trim()
+      : DEFAULT_REVIEW_SCHEDULE_SETTINGS.timezone;
+  const fixedReviewTime =
+    typeof raw?.fixedReviewTime === "string" && raw.fixedReviewTime.trim().length > 0
+      ? raw.fixedReviewTime.trim()
+      : null;
+
+  return {
+    dueMode:
+      dueMode === "precise_ms" || dueMode === "cross_day" || dueMode === "fixed_time"
+        ? dueMode
+        : DEFAULT_REVIEW_SCHEDULE_SETTINGS.dueMode,
+    timezone,
+    fixedReviewTime,
+  };
+}
+
 export async function ensureUserDocument(user: User): Promise<void> {
   const creationTime = user.metadata.creationTime
     ? Timestamp.fromDate(new Date(user.metadata.creationTime))
@@ -150,11 +179,51 @@ export async function ensureUserDocument(user: User): Promise<void> {
   );
 }
 
+export async function getUserReviewScheduleSettings(
+  userId: string,
+): Promise<ReviewScheduleSettings> {
+  const ref = userRef(userId);
+
+  try {
+    const snapshot = await getDocFromServer(ref);
+
+    if (!snapshot.exists()) {
+      return DEFAULT_REVIEW_SCHEDULE_SETTINGS;
+    }
+
+    return mapReviewScheduleSettings(snapshot.data());
+  } catch {
+    const snapshot = await getDoc(ref);
+
+    if (!snapshot.exists()) {
+      return DEFAULT_REVIEW_SCHEDULE_SETTINGS;
+    }
+
+    return mapReviewScheduleSettings(snapshot.data());
+  }
+}
+
+export async function saveUserReviewScheduleSettings(
+  userId: string,
+  settings: ReviewScheduleSettings,
+): Promise<void> {
+  await setDoc(
+    userRef(userId),
+    {
+      reviewScheduleSettings: settings,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
 export async function createSetWithWords(
   userId: string,
   title: string,
   words: WordCreatePayload[],
 ): Promise<string> {
+  const settings = await getUserReviewScheduleSettings(userId);
+  const initialNextReviewAt = calculateNextReview(0, "wrong", new Date(), settings);
   const setDocRef = doc(setsRef(userId));
   const batch = writeBatch(firestore());
 
@@ -164,7 +233,7 @@ export async function createSetWithWords(
     updatedAt: serverTimestamp(),
     totalWords: words.length,
     status: "new",
-    nextReviewAt: Timestamp.fromDate(new Date()),
+    nextReviewAt: Timestamp.fromDate(initialNextReviewAt),
     lastPracticedAt: null,
     lastSessionId: null,
   });
@@ -177,7 +246,7 @@ export async function createSetWithWords(
       answer: word.answer,
       status: "new",
       reviewLevel: 0,
-      nextReviewAt: Timestamp.fromDate(new Date()),
+      nextReviewAt: Timestamp.fromDate(initialNextReviewAt),
       lastReviewedAt: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -197,10 +266,12 @@ export async function getSets(userId: string): Promise<SetItem[]> {
 export async function getDueSets(
   userId: string,
   now: Date = new Date(),
+  settings: ReviewScheduleSettings = DEFAULT_REVIEW_SCHEDULE_SETTINGS,
 ): Promise<SetItem[]> {
+  const dueCutoff = getReviewDueCutoff(now, settings);
   const q = query(
     setsRef(userId),
-    where("nextReviewAt", "<=", Timestamp.fromDate(now)),
+    where("nextReviewAt", "<=", Timestamp.fromDate(dueCutoff)),
     orderBy("nextReviewAt", "asc"),
   );
 
@@ -227,13 +298,14 @@ export async function getWords(userId: string, setId: string): Promise<Word[]> {
 export async function getDueSetSummaries(
   userId: string,
   now: Date = new Date(),
+  settings: ReviewScheduleSettings = DEFAULT_REVIEW_SCHEDULE_SETTINGS,
 ): Promise<DueSetSummary[]> {
-  const dueSets = await getDueSets(userId, now);
+  const dueSets = await getDueSets(userId, now, settings);
 
   const summaries = await Promise.all(
     dueSets.map(async (set) => {
       const words = await getWords(userId, set.id);
-      const dueWords = words.filter((word) => word.nextReviewAt <= now).length;
+      const dueWords = words.filter((word) => isReviewDue(word.nextReviewAt, now, settings)).length;
       return { set, dueWords };
     }),
   );
@@ -279,7 +351,22 @@ export async function saveRoundAttempts(
   await batch.commit();
 }
 
-function getNextWordUpdate(word: Word, performance: WordPerformance) {
+function getNextWordUpdate(
+  word: Word,
+  performance: WordPerformance,
+  now: Date,
+  settings: ReviewScheduleSettings,
+) {
+  const isDueNow = isReviewDue(word.nextReviewAt, now, settings);
+
+  if (!isDueNow) {
+    return {
+      status: word.status,
+      reviewLevel: word.reviewLevel,
+      nextReviewAt: word.nextReviewAt,
+    };
+  }
+
   let status: WordStatus = word.status;
   let reviewLevel = word.reviewLevel;
   let reviewPerformance: ReviewPerformance = "correctClean";
@@ -297,7 +384,12 @@ function getNextWordUpdate(word: Word, performance: WordPerformance) {
     reviewPerformance = "correctClean";
   }
 
-  const nextReviewAt = calculateNextReview(word.reviewLevel, reviewPerformance);
+  const nextReviewAt = calculateNextReview(
+    word.reviewLevel,
+    reviewPerformance,
+    now,
+    settings,
+  );
 
   return {
     status,
@@ -325,6 +417,8 @@ export async function completeSession(
   wordPerformances: WordPerformance[],
   metrics: SessionMetrics,
 ): Promise<void> {
+  const now = new Date();
+  const settings = await getUserReviewScheduleSettings(userId);
   const words = await getWords(userId, setId);
   const performanceMap = new Map(
     wordPerformances.map((performance) => [performance.wordId, performance]),
@@ -341,7 +435,7 @@ export async function completeSession(
       usedHint: false,
     };
 
-    const next = getNextWordUpdate(word, performance);
+    const next = getNextWordUpdate(word, performance, now, settings);
     nextReviewDates.push(next.nextReviewAt);
     nextStatuses.push(next.status);
 

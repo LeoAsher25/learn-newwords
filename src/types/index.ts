@@ -4,6 +4,15 @@ export type WordStatus = "new" | "learning" | "weak" | "mastered";
 
 export type SessionType = "learn" | "review";
 
+export type ReviewDueMode = "precise_ms" | "cross_day" | "fixed_time";
+
+export interface ReviewScheduleSettings {
+  dueMode: ReviewDueMode;
+  timezone: string;
+  // Reserved for future notification scheduling flow.
+  fixedReviewTime: string | null;
+}
+
 export interface Word {
   id: string;
   index: number;

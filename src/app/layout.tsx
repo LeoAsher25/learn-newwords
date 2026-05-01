@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "@/components/Navbar";
+import ReactQueryProvider from "@/components/ReactQueryProvider";
 import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
 
@@ -31,12 +32,14 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-slate-50 text-slate-900">
         <AuthProvider>
-          <div className="flex min-h-screen flex-col">
-            <Navbar />
-            <main className="mx-auto flex w-full max-w-4xl flex-1 px-4 py-6">
-              {children}
-            </main>
-          </div>
+          <ReactQueryProvider>
+            <div className="flex min-h-screen flex-col">
+              <Navbar />
+              <main className="mx-auto flex w-full max-w-4xl flex-1 px-4 py-6">
+                {children}
+              </main>
+            </div>
+          </ReactQueryProvider>
         </AuthProvider>
       </body>
     </html>
