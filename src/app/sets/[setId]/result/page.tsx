@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import AuthGuard from "@/components/AuthGuard";
+import { BackButton } from "@/components/BackButton";
 import LoadingState from "@/components/LoadingState";
 import ResultSummary from "@/components/ResultSummary";
 import { useAuth } from "@/lib/auth";
@@ -71,7 +72,9 @@ function ResultContent() {
     }
 
     const wrong = new Set(
-      data.attempts.filter((attempt) => !attempt.isCorrect).map((attempt) => attempt.wordId),
+      data.attempts
+        .filter((attempt) => !attempt.isCorrect)
+        .map((attempt) => attempt.wordId),
     );
 
     return Array.from(wrong);
@@ -83,7 +86,9 @@ function ResultContent() {
     }
 
     const hinted = new Set(
-      data.attempts.filter((attempt) => attempt.usedHint).map((attempt) => attempt.wordId),
+      data.attempts
+        .filter((attempt) => attempt.usedHint)
+        .map((attempt) => attempt.wordId),
     );
 
     return Array.from(hinted);
@@ -94,16 +99,25 @@ function ResultContent() {
   }
 
   if (error || !data) {
-    return <p className="text-sm text-red-600">{error ?? "Không có dữ liệu kết quả."}</p>;
+    return (
+      <p className="text-sm text-red-600">
+        {error ?? "Không có dữ liệu kết quả."}
+      </p>
+    );
   }
 
   const wordMap = new Map(data.words.map((word) => [word.id, word]));
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="flex items-center justify-between">
+        <BackButton href={`/sets/${data.set.id}/practice`} />
+      </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm text-slate-600">Set: {data.set.title}</p>
-        <h1 className="mt-1 text-lg font-bold text-slate-900">Tổng kết session</h1>
+        <h1 className="mt-1 text-lg font-bold text-slate-900">
+          Tổng kết session
+        </h1>
 
         <div className="mt-3 space-y-2 text-sm">
           <p>
