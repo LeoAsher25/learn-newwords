@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import AuthGuard from "@/components/AuthGuard";
+import { BackButton } from "@/components/BackButton";
 import HintButton from "@/components/HintButton";
 import LoadingState from "@/components/LoadingState";
 import PracticeTable, { PracticePhase } from "@/components/PracticeTable";
@@ -163,8 +164,7 @@ function PracticeContent() {
   const actionLabel = phase === "filling" ? "Kiểm tra" : "Kiểm tra lại";
 
   const actionDisabled =
-    isSaving ||
-    (phase === "filling" ? !allInputsFilled : !canRecheck);
+    isSaving || (phase === "filling" ? !allInputsFilled : !canRecheck);
 
   const isInputEnabled = useMemo(() => {
     return (wordId: string): boolean => {
@@ -450,6 +450,9 @@ function PracticeContent() {
   if (mode === "learn") {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-4">
+        <div className="flex items-center justify-between">
+          <BackButton href="/dashboard" />
+        </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h1 className="text-lg font-bold text-slate-900">{setItem.title}</h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -497,6 +500,9 @@ function PracticeContent() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="flex items-center justify-between">
+        <BackButton href="/dashboard" />
+      </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <h1 className="text-lg font-bold text-slate-900">{setItem.title}</h1>
         <p className="mt-1 text-sm text-slate-600">

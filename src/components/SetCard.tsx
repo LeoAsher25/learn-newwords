@@ -59,13 +59,13 @@ export default function SetCard({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-(--text-normal)">
         <p>
-          <span className="font-semibold text-slate-800">Số từ:</span>{" "}
+          <span className="font-semibold text-(--text-strong)">Số từ:</span>{" "}
           {set.totalWords}
         </p>
         <p>
-          <span className="font-semibold text-slate-800">Cần ôn:</span>{" "}
+          <span className="font-semibold text-(--text-strong)">Cần ôn:</span>{" "}
           {dueWords}
         </p>
       </div>

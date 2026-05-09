@@ -62,7 +62,8 @@ function mapSetItem(id: string, data: DocumentData): SetItem {
     updatedAt: toDate(data.updatedAt, new Date()),
     nextReviewAt: toDate(data.nextReviewAt, new Date()),
     lastPracticedAt: data.lastPracticedAt ? toDate(data.lastPracticedAt) : null,
-    lastSessionId: typeof data.lastSessionId === "string" ? data.lastSessionId : null,
+    lastSessionId:
+      typeof data.lastSessionId === "string" ? data.lastSessionId : null,
   };
 }
 
@@ -89,7 +90,8 @@ function mapSession(id: string, data: DocumentData): Session {
     completedAt: data.completedAt ? toDate(data.completedAt) : null,
     totalRounds: typeof data.totalRounds === "number" ? data.totalRounds : 0,
     score: typeof data.score === "number" ? data.score : 0,
-    usedHintCount: typeof data.usedHintCount === "number" ? data.usedHintCount : 0,
+    usedHintCount:
+      typeof data.usedHintCount === "number" ? data.usedHintCount : 0,
     wrongCount: typeof data.wrongCount === "number" ? data.wrongCount : 0,
   };
 }
@@ -140,20 +142,25 @@ function attemptsRef(userId: string, setId: string, sessionId: string) {
 }
 
 function mapReviewScheduleSettings(data: DocumentData): ReviewScheduleSettings {
-  const raw = data.reviewScheduleSettings as Partial<ReviewScheduleSettings> | undefined;
+  const raw = data.reviewScheduleSettings as
+    | Partial<ReviewScheduleSettings>
+    | undefined;
   const dueMode = raw?.dueMode;
   const timezone =
     typeof raw?.timezone === "string" && raw.timezone.trim().length > 0
       ? raw.timezone.trim()
       : DEFAULT_REVIEW_SCHEDULE_SETTINGS.timezone;
   const fixedReviewTime =
-    typeof raw?.fixedReviewTime === "string" && raw.fixedReviewTime.trim().length > 0
+    typeof raw?.fixedReviewTime === "string" &&
+    raw.fixedReviewTime.trim().length > 0
       ? raw.fixedReviewTime.trim()
       : null;
 
   return {
     dueMode:
-      dueMode === "precise_ms" || dueMode === "cross_day" || dueMode === "fixed_time"
+      dueMode === "precise_ms" ||
+      dueMode === "cross_day" ||
+      dueMode === "fixed_time"
         ? dueMode
         : DEFAULT_REVIEW_SCHEDULE_SETTINGS.dueMode,
     timezone,
@@ -222,8 +229,8 @@ export async function createSetWithWords(
   title: string,
   words: WordCreatePayload[],
 ): Promise<string> {
-  const settings = await getUserReviewScheduleSettings(userId);
-  const initialNextReviewAt = calculateNextReview(0, "wrong", new Date(), settings);
+  // New sets should be available to practice immediately on the dashboard.
+  const initialNextReviewAt = new Date();
   const setDocRef = doc(setsRef(userId));
   const batch = writeBatch(firestore());
 
@@ -279,8 +286,13 @@ export async function getDueSets(
   return snapshot.docs.map((item) => mapSetItem(item.id, item.data()));
 }
 
-export async function getSet(userId: string, setId: string): Promise<SetItem | null> {
-  const snapshot = await getDoc(doc(firestore(), "users", userId, "sets", setId));
+export async function getSet(
+  userId: string,
+  setId: string,
+): Promise<SetItem | null> {
+  const snapshot = await getDoc(
+    doc(firestore(), "users", userId, "sets", setId),
+  );
 
   if (!snapshot.exists()) {
     return null;
@@ -305,7 +317,9 @@ export async function getDueSetSummaries(
   const summaries = await Promise.all(
     dueSets.map(async (set) => {
       const words = await getWords(userId, set.id);
-      const dueWords = words.filter((word) => isReviewDue(word.nextReviewAt, now, settings)).length;
+      const dueWords = words.filter((word) =>
+        isReviewDue(word.nextReviewAt, now, settings),
+      ).length;
       return { set, dueWords };
     }),
   );
@@ -439,13 +453,16 @@ export async function completeSession(
     nextReviewDates.push(next.nextReviewAt);
     nextStatuses.push(next.status);
 
-    batch.update(doc(firestore(), "users", userId, "sets", setId, "words", word.id), {
-      status: next.status,
-      reviewLevel: next.reviewLevel,
-      nextReviewAt: Timestamp.fromDate(next.nextReviewAt),
-      lastReviewedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    batch.update(
+      doc(firestore(), "users", userId, "sets", setId, "words", word.id),
+      {
+        status: next.status,
+        reviewLevel: next.reviewLevel,
+        nextReviewAt: Timestamp.fromDate(next.nextReviewAt),
+        lastReviewedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    );
   });
 
   const setStatus = deriveSetStatus(nextStatuses);
@@ -461,12 +478,15 @@ export async function completeSession(
     updatedAt: serverTimestamp(),
   });
 
-  batch.update(doc(firestore(), "users", userId, "sets", setId, "sessions", sessionId), {
-    completedAt: serverTimestamp(),
-    score: metrics.score,
-    wrongCount: metrics.wrongCount,
-    usedHintCount: metrics.usedHintCount,
-  });
+  batch.update(
+    doc(firestore(), "users", userId, "sets", setId, "sessions", sessionId),
+    {
+      completedAt: serverTimestamp(),
+      score: metrics.score,
+      wrongCount: metrics.wrongCount,
+      usedHintCount: metrics.usedHintCount,
+    },
+  );
 
   await batch.commit();
 }
@@ -492,7 +512,10 @@ export async function getAttempts(
   setId: string,
   sessionId: string,
 ): Promise<Attempt[]> {
-  const q = query(attemptsRef(userId, setId, sessionId), orderBy("createdAt", "asc"));
+  const q = query(
+    attemptsRef(userId, setId, sessionId),
+    orderBy("createdAt", "asc"),
+  );
   const snapshot = await getDocs(q);
   return snapshot.docs.map((item) => mapAttempt(item.id, item.data()));
 }
@@ -501,7 +524,11 @@ export async function getLatestSessionId(
   userId: string,
   setId: string,
 ): Promise<string | null> {
-  const q = query(sessionsRef(userId, setId), orderBy("startedAt", "desc"), limit(1));
+  const q = query(
+    sessionsRef(userId, setId),
+    orderBy("startedAt", "desc"),
+    limit(1),
+  );
   const snapshot = await getDocs(q);
 
   if (snapshot.empty) {

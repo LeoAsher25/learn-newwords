@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import AuthGuard from "@/components/AuthGuard";
+import { BackButton } from "@/components/BackButton";
 import WordInputTable from "@/components/WordInputTable";
 import { useAuth } from "@/lib/auth";
 import { createSetWithWords } from "@/lib/firestore";
@@ -31,7 +32,6 @@ function NewSetContent() {
     control,
     register,
     handleSubmit,
-    watch,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<{ title: string; words: WordInput[] }>({
@@ -44,11 +44,15 @@ function NewSetContent() {
     control,
     name: "words",
   });
-  const words = watch("words");
+  const words = useWatch({ control, name: "words" });
 
   const canSubmit = useMemo(() => !isSubmitting, [isSubmitting]);
 
-  function handleWordChange(index: number, field: "meaning" | "answer", value: string) {
+  function handleWordChange(
+    index: number,
+    field: "meaning" | "answer",
+    value: string,
+  ) {
     setValue(`words.${index}.${field}`, value, {
       shouldDirty: true,
       shouldValidate: true,
@@ -103,6 +107,9 @@ function NewSetContent() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="flex items-center justify-between">
+        <BackButton href="/dashboard" />
+      </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <h1 className="text-lg font-bold text-slate-900">Tạo set mới</h1>
         <p className="mt-1 text-sm text-slate-600">
@@ -139,17 +146,23 @@ function NewSetContent() {
 
         <WordInputTable
           words={words ?? []}
+          rowKeys={fields?.map((field) => field.id) ?? []}
           errors={
             Array.isArray(errors.words)
-              ? Object.fromEntries(
-                  errors.words.map((rowError, index) => [
-                    index,
-                    {
-                      meaning: rowError?.meaning?.message,
-                      answer: rowError?.answer?.message,
-                    },
-                  ]),
-                )
+              ? errors.words.reduce<
+                  Record<number, { meaning?: string; answer?: string }>
+                >((acc, rowError, index) => {
+                  if (!rowError) {
+                    return acc;
+                  }
+
+                  acc[index] = {
+                    meaning: rowError.meaning?.message,
+                    answer: rowError.answer?.message,
+                  };
+
+                  return acc;
+                }, {})
               : undefined
           }
           onChange={handleWordChange}
