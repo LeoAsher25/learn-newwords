@@ -25,7 +25,7 @@ Các field chính:
 
 Các field chính:
 
-- `index`, `meaning`, `answer`, `acceptedAnswers`
+- `index`, `meaning`, `answer`, `examples`
 - `status`: `new | learning | weak | mastered`
 - `reviewLevel`
 - `nextReviewAt`, `lastReviewedAt`

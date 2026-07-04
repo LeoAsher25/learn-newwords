@@ -1,7 +1,7 @@
 import { Word } from "@/types";
 import { UseFormRegisterReturn } from "react-hook-form";
 
-export type PracticePhase = "filling" | "fixing";
+export type PracticePhase = "filling" | "checked";
 
 interface PracticeTableProps {
   words: Word[];
@@ -47,7 +47,7 @@ export default function PracticeTable({
         <tbody>
           {orderedWords.map((word, index) => {
             const isActive = phase === "filling" && activeWordId === word.id;
-            const isEditable = isInputEnabled(word.id);
+            const isEditable = phase === "filling" && isInputEnabled(word.id);
 
             const inputBorderClass = wrongMap[word.id]
               ? "border-red-400 bg-red-50"
@@ -55,12 +55,18 @@ export default function PracticeTable({
                 ? "border-emerald-400 bg-emerald-50"
                 : "border-slate-300 bg-white";
 
-            return (
+            const hasExamples = word.examples.length > 0;
+
+            return [
               <tr key={word.id} className="border-t border-slate-200 align-top">
                 <td className="px-4 py-3">
                   <div className="flex items-start gap-2">
-                    <span className="font-medium text-slate-500">{index + 1}.</span>
-                    <span className="font-medium text-slate-900">{word.meaning}</span>
+                    <span className="font-medium text-slate-500">
+                      {index + 1}.
+                    </span>
+                    <span className="font-medium text-slate-900">
+                      {word.meaning}
+                    </span>
                     {isActive ? (
                       <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase text-white">
                         hiện tại
@@ -73,7 +79,9 @@ export default function PracticeTable({
                     type="text"
                     value={inputs[word.id] ?? ""}
                     {...registerInput(word.id)}
-                    onChange={(event) => onInputChange(word.id, event.target.value)}
+                    onChange={(event) =>
+                      onInputChange(word.id, event.target.value)
+                    }
                     disabled={!isEditable}
                     className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100 ${inputBorderClass}`}
                     placeholder="Nhập từ tiếng Anh"
@@ -86,11 +94,44 @@ export default function PracticeTable({
                   ) : null}
 
                   {wrongMap[word.id] ? (
-                    <p className="mt-1 text-xs text-red-600">Đáp án đúng: {word.answer}</p>
+                    <p className="mt-1 text-xs text-red-600">
+                      Đáp án đúng: {word.answer}
+                    </p>
                   ) : null}
                 </td>
-              </tr>
-            );
+              </tr>,
+              phase === "checked" ? (
+                <tr
+                  key={`${word.id}-examples`}
+                  className="border-t border-slate-200 bg-slate-50 align-top">
+                  <td colSpan={2} className="px-4 py-3 ">
+                    <div className="text-sm text-slate-700 flex items-center">
+                      <div className="pr-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Ví dụ
+                      </div>
+                      {hasExamples ? (
+                        <div className="">
+                          {word.examples.map((example, exampleIndex) => (
+                            <p
+                              key={`${word.id}-example-${exampleIndex}`}
+                              className="leading-6 flex items-center">
+                              <span className="mr-2 w-5 h-5 justify-center inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                                {exampleIndex + 1}
+                              </span>
+                              <span>{example}</span>
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-slate-500 italic">
+                          Chưa có ví dụ cho từ này.
+                        </p>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : null,
+            ];
           })}
         </tbody>
       </table>
