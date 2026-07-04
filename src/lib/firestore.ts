@@ -73,6 +73,9 @@ function mapWord(id: string, data: DocumentData): Word {
     index: data.index ?? 0,
     meaning: data.meaning ?? "",
     answer: data.answer ?? "",
+    examples: Array.isArray(data.examples)
+      ? data.examples.filter((example) => typeof example === "string")
+      : [],
     status: (data.status as WordStatus) ?? "new",
     reviewLevel: typeof data.reviewLevel === "number" ? data.reviewLevel : 0,
     nextReviewAt: toDate(data.nextReviewAt, new Date()),
@@ -251,6 +254,7 @@ export async function createSetWithWords(
       index: word.index,
       meaning: word.meaning,
       answer: word.answer,
+      examples: word.examples,
       status: "new",
       reviewLevel: 0,
       nextReviewAt: Timestamp.fromDate(initialNextReviewAt),
@@ -262,6 +266,81 @@ export async function createSetWithWords(
 
   await batch.commit();
   return setDocRef.id;
+}
+
+export async function updateSetWithWords(
+  userId: string,
+  setId: string,
+  title: string,
+  words: WordCreatePayload[],
+): Promise<void> {
+  const setRef = doc(firestore(), "users", userId, "sets", setId);
+  const wordsCollectionRef = wordsRef(userId, setId);
+  const existingWordsSnapshot = await getDocs(
+    query(wordsCollectionRef, orderBy("index", "asc")),
+  );
+
+  const existingWordDocs = existingWordsSnapshot.docs;
+  const initialNextReviewAt = new Date();
+  const batch = writeBatch(firestore());
+
+  batch.set(
+    setRef,
+    {
+      title,
+      totalWords: words.length,
+      status: "new",
+      nextReviewAt: Timestamp.fromDate(initialNextReviewAt),
+      lastPracticedAt: null,
+      lastSessionId: null,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  for (let index = words.length; index < existingWordDocs.length; index += 1) {
+    batch.delete(existingWordDocs[index].ref);
+  }
+
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index];
+    const existingWordDoc = existingWordDocs[index] ?? null;
+
+    if (existingWordDoc) {
+      batch.set(
+        existingWordDoc.ref,
+        {
+          index: word.index,
+          meaning: word.meaning,
+          answer: word.answer,
+          examples: word.examples,
+          status: "new",
+          reviewLevel: 0,
+          nextReviewAt: Timestamp.fromDate(initialNextReviewAt),
+          lastReviewedAt: null,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      continue;
+    }
+
+    const wordDocRef = doc(wordsCollectionRef);
+    batch.set(wordDocRef, {
+      index: word.index,
+      meaning: word.meaning,
+      answer: word.answer,
+      examples: word.examples,
+      status: "new",
+      reviewLevel: 0,
+      nextReviewAt: Timestamp.fromDate(initialNextReviewAt),
+      lastReviewedAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
 }
 
 export async function getSets(userId: string): Promise<SetItem[]> {

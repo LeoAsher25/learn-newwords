@@ -12,17 +12,15 @@
  *   SEED_USER_ID=<uid> npm run seed:test-data -- --clean   # remove previous [Seed] sets first
  *
  * Creates fixed doc IDs under users/{uid}/sets/seed_* so you can re-run safely with --clean.
+ *
+ * Set titles are exactly: [Seed] DD/MM/YYYY (no extra suffix text).
  */
 
 import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
-import {
-  Firestore,
-  Timestamp,
-  getFirestore,
-} from "firebase-admin/firestore";
+import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 
 const SEED_SET_PREFIX = "seed_";
 
@@ -30,6 +28,7 @@ type WordSeed = {
   index: number;
   meaning: string;
   answer: string;
+  examples: string[];
   status: "new" | "learning" | "weak" | "mastered";
   reviewLevel: number;
   nextReviewAt: Date;
@@ -127,6 +126,13 @@ function formatDateForSeedTitle(value: Date): string {
   return `${day}/${month}/${year}`;
 }
 
+/** Display title only — must stay `[Seed] DD/MM/YYYY` with no other words. */
+function buildSeedSetTitle(createdAt: Date): string {
+  return `[Seed] ${formatDateForSeedTitle(createdAt)}`;
+}
+
+const SEED_SET_TITLE_PATTERN = /^\[Seed\] \d{2}\/\d{2}\/\d{4}$/;
+
 function toSeedIdFromDate(value: Date): string {
   const day = `${value.getDate()}`.padStart(2, "0");
   const month = `${value.getMonth() + 1}`.padStart(2, "0");
@@ -173,10 +179,14 @@ function buildScenarios(now: Date): SetSeed[] {
   const minimumSets = 40;
   const scenarios: SetSeed[] = [];
 
-  for (let createdDaysAgo = 0; createdDaysAgo < minimumSets; createdDaysAgo += 1) {
+  for (
+    let createdDaysAgo = 0;
+    createdDaysAgo < minimumSets;
+    createdDaysAgo += 1
+  ) {
     const createdAt = addDays(now, -createdDaysAgo);
     const id = toSeedIdFromDate(createdAt);
-    const title = `[Seed] ${formatDateForSeedTitle(createdAt)}`;
+    const title = buildSeedSetTitle(createdAt);
 
     const wordCount = createdDaysAgo % 8 === 0 ? 10 : 5;
     const mode = createdDaysAgo % 4;
@@ -237,6 +247,7 @@ function buildScenarios(now: Date): SetSeed[] {
         index,
         meaning: `${dict.meaning}_${createdDaysAgo}_${index}`,
         answer: `${dict.answer}_${createdDaysAgo}_${index}`,
+        examples: index % 3 === 0 ? [`I saw ${dict.meaning} today.`] : [],
         status: wordStatus,
         reviewLevel,
         nextReviewAt: wordNextReviewAt,
@@ -299,6 +310,12 @@ function assertNoDuplicates(scenarios: SetSeed[]): void {
     }
     setIds.add(scenario.id);
 
+    if (!SEED_SET_TITLE_PATTERN.test(scenario.title)) {
+      throw new Error(
+        `Invalid seed set title (expected only "[Seed] DD/MM/YYYY"): ${scenario.title}`,
+      );
+    }
+
     if (setTitles.has(scenario.title)) {
       throw new Error(`Duplicate set title detected: ${scenario.title}`);
     }
@@ -334,7 +351,11 @@ async function deleteAttemptsForSession(
   }
 }
 
-async function deleteSetTree(db: Firestore, userId: string, setId: string): Promise<void> {
+async function deleteSetTree(
+  db: Firestore,
+  userId: string,
+  setId: string,
+): Promise<void> {
   const sessionsSnap = await db
     .collection(`users/${userId}/sets/${setId}/sessions`)
     .get();
@@ -344,7 +365,9 @@ async function deleteSetTree(db: Firestore, userId: string, setId: string): Prom
     await s.ref.delete();
   }
 
-  const wordsSnap = await db.collection(`users/${userId}/sets/${setId}/words`).get();
+  const wordsSnap = await db
+    .collection(`users/${userId}/sets/${setId}/words`)
+    .get();
   const wb = db.batch();
   wordsSnap.docs.forEach((d) => wb.delete(d.ref));
   if (!wordsSnap.empty) {
@@ -354,7 +377,12 @@ async function deleteSetTree(db: Firestore, userId: string, setId: string): Prom
   await db.doc(`users/${userId}/sets/${setId}`).delete();
 }
 
-async function seedSet(db: Firestore, userId: string, scenario: SetSeed, now: Date): Promise<void> {
+async function seedSet(
+  db: Firestore,
+  userId: string,
+  scenario: SetSeed,
+  now: Date,
+): Promise<void> {
   const setRef = db.doc(`users/${userId}/sets/${scenario.id}`);
   const createdAt = daysAgo(scenario.createdDaysAgo);
   const updatedAt = now;
@@ -385,6 +413,7 @@ async function seedSet(db: Firestore, userId: string, scenario: SetSeed, now: Da
       index: w.index,
       meaning: w.meaning,
       answer: w.answer,
+      examples: w.examples,
       status: w.status,
       reviewLevel: w.reviewLevel,
       nextReviewAt: Timestamp.fromDate(w.nextReviewAt),
@@ -415,7 +444,9 @@ async function seedSet(db: Firestore, userId: string, scenario: SetSeed, now: Da
     for (const a of session.attempts) {
       const wordId = wordIdByIndex[a.wordIndex];
       if (!wordId) {
-        throw new Error(`Missing word index ${a.wordIndex} for set ${scenario.id}`);
+        throw new Error(
+          `Missing word index ${a.wordIndex} for set ${scenario.id}`,
+        );
       }
       const attemptRef = sessionRef.collection("attempts").doc();
       await attemptRef.set({
@@ -433,7 +464,9 @@ async function seedSet(db: Firestore, userId: string, scenario: SetSeed, now: Da
 async function main(): Promise<void> {
   const userId = process.env.SEED_USER_ID?.trim();
   if (!userId) {
-    throw new Error("Set SEED_USER_ID to the Firebase Auth uid (e.g. your email/password test account).");
+    throw new Error(
+      "Set SEED_USER_ID to the Firebase Auth uid (e.g. your email/password test account).",
+    );
   }
 
   const { clean } = parseArgs();

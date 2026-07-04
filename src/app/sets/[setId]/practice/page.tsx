@@ -61,7 +61,7 @@ function PracticeContent() {
     wrongCount: 0,
     usedHintCount: 0,
   });
-  const { register, setValue, getValues, reset, control } = useForm<{
+  const { register, getValues, reset, control } = useForm<{
     inputs: Record<string, string>;
   }>({
     defaultValues: { inputs: {} },
@@ -119,8 +119,8 @@ function PracticeContent() {
   }, [orders, roundIndex, words]);
 
   const activeWordId = useMemo(() => {
-    if (phase === "fixing") {
-      return orderedWordIds.find((wordId) => wrongMap[wordId]) ?? null;
+    if (phase !== "filling") {
+      return null;
     }
 
     for (let i = 0; i < orderedWordIds.length; i++) {
@@ -144,7 +144,7 @@ function PracticeContent() {
     }
 
     return null;
-  }, [phase, orderedWordIds, safeInputs, wrongMap]);
+  }, [phase, orderedWordIds, safeInputs]);
 
   const allInputsFilled = useMemo(
     () =>
@@ -155,21 +155,20 @@ function PracticeContent() {
     [orderedWordIds, safeInputs],
   );
 
-  const canRecheck =
-    Object.keys(wrongMap).length > 0 &&
-    Object.entries(wrongMap)
-      .filter(([, value]) => value)
-      .every(([wordId]) => (safeInputs[wordId] ?? "").trim().length > 0);
-
-  const actionLabel = phase === "filling" ? "Kiểm tra" : "Kiểm tra lại";
+  const actionLabel =
+    phase === "filling"
+      ? "Kiểm tra"
+      : roundIndex < TOTAL_ROUNDS - 1
+        ? "Tiếp tục"
+        : "Hoàn tất";
 
   const actionDisabled =
-    isSaving || (phase === "filling" ? !allInputsFilled : !canRecheck);
+    isSaving || (phase === "filling" ? !allInputsFilled : false);
 
   const isInputEnabled = useMemo(() => {
     return (wordId: string): boolean => {
-      if (phase === "fixing") {
-        return Boolean(wrongMap[wordId]);
+      if (phase !== "filling") {
+        return false;
       }
 
       const idx = orderedWordIds.indexOf(wordId);
@@ -186,7 +185,7 @@ function PracticeContent() {
 
       return true;
     };
-  }, [phase, orderedWordIds, safeInputs, wrongMap]);
+  }, [phase, orderedWordIds, safeInputs]);
 
   function resetRound(nextRoundIndex: number) {
     setRoundIndex(nextRoundIndex);
@@ -284,18 +283,6 @@ function PracticeContent() {
       delete next[wordId];
       return next;
     });
-
-    if (phase === "fixing") {
-      if (!wrongMap[wordId]) {
-        return;
-      }
-
-      setValue(`inputs.${wordId}`, value, {
-        shouldDirty: true,
-        shouldValidate: false,
-      });
-      return;
-    }
 
     const idx = orderedWordIds.indexOf(wordId);
 
@@ -414,18 +401,7 @@ function PracticeContent() {
 
       setWrongMap(nextWrongMap);
       setLastCheckMap(nextLastCheckMap);
-
-      if (wrongCountInCheck > 0) {
-        setPhase("fixing");
-        return;
-      }
-
-      if (roundIndex < TOTAL_ROUNDS - 1) {
-        resetRound(roundIndex + 1);
-        return;
-      }
-
-      await finalizeSession(sessionId);
+      setPhase("checked");
     } catch {
       setPracticeError("Có lỗi khi lưu kết quả round. Vui lòng thử lại.");
     } finally {
@@ -434,7 +410,19 @@ function PracticeContent() {
   }
 
   async function handleContinueOrCheck() {
-    await runCheckRound();
+    if (phase === "filling") {
+      await runCheckRound();
+      return;
+    }
+
+    if (roundIndex < TOTAL_ROUNDS - 1) {
+      resetRound(roundIndex + 1);
+      return;
+    }
+
+    if (sessionId) {
+      await finalizeSession(sessionId);
+    }
   }
 
   if (loading) {

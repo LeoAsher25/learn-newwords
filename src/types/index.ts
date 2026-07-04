@@ -18,6 +18,7 @@ export interface Word {
   index: number;
   meaning: string;
   answer: string;
+  examples: string[];
   status: WordStatus;
   reviewLevel: number;
   nextReviewAt: Date;
@@ -29,12 +30,14 @@ export interface Word {
 export interface WordInput {
   meaning: string;
   answer: string;
+  examples: string[];
 }
 
 export interface WordCreatePayload {
   index: number;
   meaning: string;
   answer: string;
+  examples: string[];
 }
 
 export interface SetItem {
