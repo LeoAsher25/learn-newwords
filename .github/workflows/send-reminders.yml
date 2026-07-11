@@ -35,4 +35,6 @@ jobs:
           SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
           REMINDER_FROM_EMAIL: ${{ secrets.REMINDER_FROM_EMAIL }}
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          # Public app name used by reminder email sender. This is safe as plain text.
+          NEXT_PUBLIC_APP_NAME: ${{ secrets.NEXT_PUBLIC_APP_NAME }}
         run: npm run reminder:send
