@@ -20,7 +20,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # Use `npm install` temporarily so CI doesn't fail when lockfile
+        # and package.json are out of sync. Replace with `npm ci` after
+        # committing an updated package-lock.json.
+        run: npm install --prefer-offline --no-audit --no-fund
 
       - name: Run reminder sender
         env:
