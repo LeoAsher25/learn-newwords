@@ -11,9 +11,11 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "seed:test-data": "tsx scripts/seed-test-data.ts"
+    "seed:test-data": "tsx scripts/seed-test-data.ts",
+    "reminder:send": "tsx scripts/send-reminders.ts"
   },
   "dependencies": {
+    "nodemailer": "^6.9.4",
     "@tanstack/react-query": "^5.100.6",
     "dotenv": "^17.4.2",
     "firebase": "^12.12.1",

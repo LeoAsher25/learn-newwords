@@ -6,11 +6,15 @@ export interface DashboardData {
   dueSummaries: DueSetSummary[];
 }
 
-export async function fetchDashboardData(userId: string): Promise<DashboardData> {
+export async function fetchDashboardData(
+  userId: string,
+): Promise<DashboardData> {
   const [sets, dueSummaries] = await Promise.all([
     getSets(userId),
     getDueSetSummaries(userId),
   ]);
+
+  console.log("sets: ", sets);
 
   return { sets, dueSummaries };
 }

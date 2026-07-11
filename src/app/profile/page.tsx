@@ -19,16 +19,20 @@ function ProfileContent() {
         <dl className="space-y-3 text-sm">
           <div>
             <dt className="font-medium text-slate-500">Tên hiển thị</dt>
-            <dd className="text-slate-900">{user?.displayName ?? "Chưa cập nhật"}</dd>
+            <dd className="text-slate-900">
+              {user?.displayName ?? "Chưa cập nhật"}
+            </dd>
           </div>
           <div>
             <dt className="font-medium text-slate-500">Email</dt>
-            <dd className="text-slate-900">{user?.email ?? "Không có email"}</dd>
+            <dd className="text-slate-900">
+              {user?.email ?? "Không có email"}
+            </dd>
           </div>
-          <div>
+          {/* <div>
             <dt className="font-medium text-slate-500">UID</dt>
             <dd className="break-all text-slate-900">{user?.uid ?? "-"}</dd>
-          </div>
+          </div> */}
         </dl>
       </section>
     </div>

@@ -160,14 +160,14 @@ Repo này là **Next.js App Router** — Vercel nhận diện tự động; file
 
 Trong **Project → Settings → Environment Variables**, thêm **cùng bộ** như `.env.example` / `.env.local`:
 
-| Name | Environment |
-|------|-------------|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Production, Preview, Development |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Production, Preview, Development |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Production, Preview, Development |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Production, Preview, Development |
+| Name                                       | Environment                      |
+| ------------------------------------------ | -------------------------------- |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`             | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`         | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID`          | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`      | Production, Preview, Development |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Production, Preview, Development |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Production, Preview, Development |
+| `NEXT_PUBLIC_FIREBASE_APP_ID`              | Production, Preview, Development |
 
 Sau khi lưu → **Redeploy** (hoặc push commit mới) để build nhận env.
 
@@ -203,4 +203,33 @@ npm run lint
 npm run typecheck
 npm run build
 npm run start
+npm run reminder:send
+```
+
+## Email reminder flow
+
+Reminder được triển khai theo hướng server-side batch:
+
+- User lưu cài đặt reminder trong `users/{uid}.reminderSettings`.
+- Mỗi lần set thay đổi lịch ôn, app cập nhật `users/{uid}.reminderNextDueAt` (mốc sớm nhất).
+- Job `scripts/send-reminders.ts` quét user có `reminderNextDueAt` gần hạn và gửi email.
+- GitHub Actions chạy job định kỳ tại `.github/workflows/send-reminders.yml`.
+
+### Biến môi trường cho reminder sender
+
+```env
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-smtp-user
+SMTP_PASS=your-smtp-password
+SMTP_SECURE=false
+REMINDER_FROM_EMAIL=no-reply@example.com
+APP_BASE_URL=https://learn-newwords.vercel.app
+```
+
+### Chạy local (dry-run)
+
+```bash
+npm run reminder:send -- --dry-run --max-users=20
 ```
