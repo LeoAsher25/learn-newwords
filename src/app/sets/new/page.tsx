@@ -7,8 +7,16 @@ import SetEditorForm, { MIN_WORDS } from "@/components/SetEditorForm";
 import { useAuth } from "@/lib/auth";
 import { createSetWithWords } from "@/lib/firestore";
 
+// return format DD/MM/YYYY HH:mm
+// to separate 2 sets being created in same day
 function getDefaultSetTitle(): string {
-  return new Date().toLocaleDateString("en-GB");
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const date = new Date();
+  return (
+    [pad(date.getDate()), pad(date.getMonth() + 1), date.getFullYear()].join(
+      "/",
+    ) + ` ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
 }
 
 function NewSetContent() {

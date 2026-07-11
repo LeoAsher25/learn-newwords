@@ -11,13 +11,15 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "seed:test-data": "tsx scripts/seed-test-data.ts"
+    "seed:test-data": "tsx scripts/seed-test-data.ts",
+    "reminder:send": "tsx scripts/send-reminders.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.6",
     "dotenv": "^17.4.2",
     "firebase": "^12.12.1",
     "next": "16.2.4",
+    "nodemailer": "^6.9.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.74.0"
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

@@ -22,10 +22,15 @@ import {
   getReviewDueCutoff,
   isReviewDue,
 } from "@/lib/reviewSchedule";
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  normalizeReminderSettings,
+} from "@/lib/reminderSettings";
 import { calculateNextReview, ReviewPerformance } from "@/lib/spacedRepetition";
 import {
   Attempt,
   DueSetSummary,
+  ReminderSettings,
   ResultData,
   RoundAttemptPayload,
   Session,
@@ -50,6 +55,18 @@ function toDate(value: unknown, fallback: Date = new Date(0)): Date {
   }
 
   return fallback;
+}
+
+function toNullableDate(value: unknown): Date | null {
+  if (value instanceof Timestamp) {
+    return value.toDate();
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  return null;
 }
 
 function mapSetItem(id: string, data: DocumentData): SetItem {
@@ -171,6 +188,33 @@ function mapReviewScheduleSettings(data: DocumentData): ReviewScheduleSettings {
   };
 }
 
+function mapReminderSettings(data: DocumentData): ReminderSettings {
+  const raw = data.reminderSettings as Partial<ReminderSettings> | undefined;
+  console.log("raw: ", raw);
+  return normalizeReminderSettings(raw);
+}
+
+async function syncUserReminderNextDueAt(userId: string): Promise<void> {
+  const q = query(setsRef(userId), orderBy("nextReviewAt", "asc"), limit(1));
+  const snapshot = await getDocs(q);
+
+  const earliestSet = snapshot.empty ? null : snapshot.docs[0].data();
+  const earliestNextReviewAt = earliestSet
+    ? toNullableDate(earliestSet.nextReviewAt)
+    : null;
+
+  await setDoc(
+    userRef(userId),
+    {
+      reminderNextDueAt: earliestNextReviewAt
+        ? Timestamp.fromDate(earliestNextReviewAt)
+        : null,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
 export async function ensureUserDocument(user: User): Promise<void> {
   const creationTime = user.metadata.creationTime
     ? Timestamp.fromDate(new Date(user.metadata.creationTime))
@@ -227,6 +271,47 @@ export async function saveUserReviewScheduleSettings(
   );
 }
 
+export async function getUserReminderSettings(
+  userId: string,
+): Promise<ReminderSettings> {
+  const ref = userRef(userId);
+
+  try {
+    const snapshot = await getDocFromServer(ref);
+    // as some reason I don't know, if remove the below console.log line
+    // it always go to the `if (!snapshot.exists())`. FUCK :)))
+    console.log("snapshot: ", snapshot);
+
+    if (!snapshot.exists()) {
+      return DEFAULT_REMINDER_SETTINGS;
+    }
+
+    return mapReminderSettings(snapshot.data());
+  } catch {
+    const snapshot = await getDoc(ref);
+
+    if (!snapshot.exists()) {
+      return DEFAULT_REMINDER_SETTINGS;
+    }
+
+    return mapReminderSettings(snapshot.data());
+  }
+}
+
+export async function saveUserReminderSettings(
+  userId: string,
+  settings: ReminderSettings,
+): Promise<void> {
+  await setDoc(
+    userRef(userId),
+    {
+      reminderSettings: normalizeReminderSettings(settings),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
 export async function createSetWithWords(
   userId: string,
   title: string,
@@ -265,6 +350,7 @@ export async function createSetWithWords(
   });
 
   await batch.commit();
+  await syncUserReminderNextDueAt(userId);
   return setDocRef.id;
 }
 
@@ -341,6 +427,7 @@ export async function updateSetWithWords(
   }
 
   await batch.commit();
+  await syncUserReminderNextDueAt(userId);
 }
 
 export async function getSets(userId: string): Promise<SetItem[]> {
@@ -568,6 +655,7 @@ export async function completeSession(
   );
 
   await batch.commit();
+  await syncUserReminderNextDueAt(userId);
 }
 
 export async function getSession(

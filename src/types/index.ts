@@ -13,6 +13,12 @@ export interface ReviewScheduleSettings {
   fixedReviewTime: string | null;
 }
 
+export interface ReminderSettings {
+  emailEnabled: boolean;
+  // Send reminder when set due time is within this window.
+  leadTimeMinutes: number;
+}
+
 export interface Word {
   id: string;
   index: number;
